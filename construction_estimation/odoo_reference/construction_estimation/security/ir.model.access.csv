@@ -1,0 +1,15 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_construction_material_user,construction.material user,model_construction_material,base.group_user,1,1,1,1
+access_construction_labour_user,construction.labour user,model_construction_labour,base.group_user,1,1,1,1
+access_construction_ac_user,construction.ac user,model_construction_ac,base.group_user,1,1,1,1
+access_construction_ac_material_user,construction.ac.material user,model_construction_ac_material,base.group_user,1,1,1,1
+access_construction_ac_labour_user,construction.ac.labour user,model_construction_ac_labour,base.group_user,1,1,1,1
+access_construction_project_estimate_user,construction.project.estimate user,model_construction_project_estimate,base.group_user,1,1,1,1
+access_construction_estimate_line_user,construction.estimate.line user,model_construction_estimate_line,base.group_user,1,1,1,1
+access_construction_estimate_line_material_user,construction.estimate.line.material user,model_construction_estimate_line_material,base.group_user,1,1,1,1
+access_construction_estimate_line_labour_user,construction.estimate.line.labour user,model_construction_estimate_line_labour,base.group_user,1,1,1,1
+access_construction_estimate_line_section_user,construction.estimate.line.section user,model_construction_estimate_line_section,base.group_user,1,1,1,1
+access_construction_estimate_line_subelement_user,construction.estimate.line.subelement user,model_construction_estimate_line_subelement,base.group_user,1,1,1,1
+access_construction_estimate_line_measurement_user,construction.estimate.line.measurement user,model_construction_estimate_line_measurement,base.group_user,1,1,1,1
+access_construction_estimate_line_copy_wizard_user,construction.estimate.line.copy.wizard user,model_construction_estimate_line_copy_wizard,base.group_user,1,1,1,1
+access_construction_uom_user,construction.uom user,model_construction_uom,base.group_user,1,1,1,1

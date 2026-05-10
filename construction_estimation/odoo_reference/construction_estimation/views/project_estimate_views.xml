@@ -1,0 +1,292 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_project_estimate_list" model="ir.ui.view">
+        <field name="name">construction.project.estimate.list</field>
+        <field name="model">construction.project.estimate</field>
+        <field name="arch" type="xml">
+            <list string="Project Estimates" decoration-muted="state=='cancelled'">
+                <field name="name"/>
+                <field name="customer_id"/>
+                <field name="date"/>
+                <field name="total_material_cost" string="Material Cost" sum="Total Mat."/>
+                <field name="total_labour_cost" string="Labour Cost" sum="Total Lab."/>
+                <field name="total_cost" string="Grand Total" sum="Grand Total"/>
+                <field name="state" widget="badge"
+                       decoration-success="state=='confirmed'"
+                       decoration-warning="state=='draft'"
+                       decoration-danger="state=='cancelled'"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_estimate_line_form" model="ir.ui.view">
+        <field name="name">construction.estimate.line.form</field>
+        <field name="model">construction.estimate.line</field>
+        <field name="arch" type="xml">
+            <form string="Estimation Line">
+                <header>
+                    <button name="action_recompute_from_ac"
+                            string="Recompute from A/C"
+                            type="object" class="btn-secondary"
+                            help="Re-copy material and labour rows from the A/C, scaled by the current Base Qty."/>
+                    <button name="action_copy_sections_from_line"
+                            string="Copy Structure from Another Line"
+                            type="object" class="btn-secondary"
+                            invisible="not use_detailed_measurement"
+                            help="Clone the Section/Sub-element skeleton (names only) from another line in this estimate."/>
+                </header>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="ac_id"/>
+                            <field name="reference"/>
+                            <field name="measurement_type" readonly="1"/>
+                            <field name="uom_id"/>
+                            <field name="use_detailed_measurement" widget="boolean_toggle"/>
+                        </group>
+                        <group>
+                            <label for="length_ft" string="Length (Ft / In)"/>
+                            <div class="o_row">
+                                <field name="length_ft" nolabel="1"/>
+                                <field name="length_in" nolabel="1"/>
+                            </div>
+                            <label for="breadth_ft" string="Breadth (Ft / In)"/>
+                            <div class="o_row">
+                                <field name="breadth_ft" nolabel="1"/>
+                                <field name="breadth_in" nolabel="1"/>
+                            </div>
+                            <label for="height_ft" string="Height (Ft / In)"
+                                   invisible="measurement_type != 'cuft'"/>
+                            <div class="o_row"
+                                 invisible="measurement_type != 'cuft'">
+                                <field name="height_ft" nolabel="1"/>
+                                <field name="height_in" nolabel="1"/>
+                            </div>
+                            <field name="area" readonly="1"
+                                   invisible="measurement_type != 'sqft'"/>
+                            <field name="volume" readonly="1"
+                                   invisible="measurement_type != 'cuft'"/>
+                            <field name="manual_qty"
+                                   invisible="use_detailed_measurement"/>
+                            <field name="detailed_total" readonly="1"
+                                   invisible="not use_detailed_measurement"/>
+                            <field name="base_qty" readonly="1"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Detailed Measurement"
+                              invisible="not use_detailed_measurement">
+                            <field name="section_ids">
+                                <list string="Sections">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="name"/>
+                                    <field name="subtotal" readonly="1" sum="Total"/>
+                                </list>
+                                <form string="Section">
+                                    <sheet>
+                                        <group>
+                                            <field name="name"/>
+                                            <field name="subtotal" readonly="1"/>
+                                        </group>
+                                        <field name="subelement_ids">
+                                            <list string="Sub-elements">
+                                                <field name="sequence" widget="handle"/>
+                                                <field name="name"/>
+                                                <field name="subtotal" readonly="1" sum="Total"/>
+                                            </list>
+                                            <form string="Sub-element">
+                                                <sheet>
+                                                    <group>
+                                                        <field name="name"/>
+                                                        <field name="measurement_type" invisible="1"/>
+                                                        <field name="subtotal" readonly="1"/>
+                                                    </group>
+                                                    <field name="measurement_ids">
+                                                        <list string="Measurements" editable="bottom">
+                                                            <field name="sequence" widget="handle"/>
+                                                            <field name="measurement_type" column_invisible="1"/>
+                                                            <field name="name" string="Particular"/>
+                                                            <field name="nos"/>
+                                                            <field name="multiplier" string="×"/>
+                                                            <field name="length_ft" string="L Ft"/>
+                                                            <field name="length_in" string="L In"/>
+                                                            <field name="breadth_ft" string="B Ft"/>
+                                                            <field name="breadth_in" string="B In"/>
+                                                            <field name="height_ft" string="H Ft"
+                                                                   column_invisible="parent.measurement_type == 'sqft'"/>
+                                                            <field name="height_in" string="H In"
+                                                                   column_invisible="parent.measurement_type == 'sqft'"/>
+                                                            <field name="deduction"/>
+                                                            <field name="content" readonly="1" sum="Total"/>
+                                                            <field name="uom_label" string="Unit"/>
+                                                        </list>
+                                                    </field>
+                                                </sheet>
+                                            </form>
+                                        </field>
+                                    </sheet>
+                                </form>
+                            </field>
+                            <group class="oe_subtotal_footer oe_right">
+                                <field name="detailed_total" readonly="1"/>
+                            </group>
+                        </page>
+                        <page string="Materials">
+                            <field name="material_detail_ids">
+                                <list editable="bottom">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="reference" optional="show"/>
+                                    <field name="material_id"/>
+                                    <field name="template_qty" string="Std. Qty" optional="show" readonly="1"/>
+                                    <field name="template_base_qty" string="Tpl. Base" optional="hide" readonly="1"/>
+                                    <field name="suggested_qty" string="Suggested" readonly="1"/>
+                                    <field name="quantity" string="Manual Qty"/>
+                                    <field name="is_manual" string="Override" widget="boolean_toggle"/>
+                                    <field name="uom_id" readonly="1"/>
+                                    <field name="rate"/>
+                                    <field name="per" optional="hide"/>
+                                    <field name="amount" readonly="1" sum="Total"/>
+                                    <button name="action_reset_to_suggested"
+                                            type="object" icon="fa-refresh"
+                                            string="Reset to Suggested"
+                                            invisible="not is_manual"/>
+                                </list>
+                            </field>
+                            <group class="oe_subtotal_footer oe_right">
+                                <field name="material_total" readonly="1"/>
+                            </group>
+                        </page>
+                        <page string="Labours">
+                            <field name="labour_detail_ids">
+                                <list editable="bottom">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="reference" optional="show"/>
+                                    <field name="labour_id"/>
+                                    <field name="template_qty" string="Std. Qty" optional="show" readonly="1"/>
+                                    <field name="template_base_qty" string="Tpl. Base" optional="hide" readonly="1"/>
+                                    <field name="suggested_qty" string="Suggested" readonly="1"/>
+                                    <field name="quantity" string="Manual Qty"/>
+                                    <field name="is_manual" string="Override" widget="boolean_toggle"/>
+                                    <field name="uom_id" readonly="1"/>
+                                    <field name="rate"/>
+                                    <field name="per" optional="hide"/>
+                                    <field name="amount" readonly="1" sum="Total"/>
+                                    <button name="action_reset_to_suggested"
+                                            type="object" icon="fa-refresh"
+                                            string="Reset to Suggested"
+                                            invisible="not is_manual"/>
+                                </list>
+                            </field>
+                            <group class="oe_subtotal_footer oe_right">
+                                <field name="labour_total" readonly="1"/>
+                            </group>
+                        </page>
+                    </notebook>
+                    <group class="oe_subtotal_footer oe_right">
+                        <field name="total_cost" readonly="1"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_project_estimate_form" model="ir.ui.view">
+        <field name="name">construction.project.estimate.form</field>
+        <field name="model">construction.project.estimate</field>
+        <field name="arch" type="xml">
+            <form string="Project Estimate">
+                <header>
+                    <button name="action_confirm" string="Confirm"
+                            type="object" class="oe_highlight"
+                            invisible="state != 'draft'"/>
+                    <button name="action_cancel" string="Cancel"
+                            type="object"
+                            invisible="state == 'cancelled'"/>
+                    <button name="action_reset_draft" string="Reset to Draft"
+                            type="object"
+                            invisible="state != 'cancelled'"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="draft,confirmed,cancelled"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1><field name="name" placeholder="Estimate Name"/></h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="customer_id"/>
+                            <field name="date"/>
+                        </group>
+                        <group>
+                            <field name="company_id" groups="base.group_multi_company"/>
+                            <field name="total_material_cost" readonly="1"/>
+                            <field name="total_labour_cost" readonly="1"/>
+                            <field name="total_cost" readonly="1"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Estimation Lines">
+                            <field name="line_ids">
+                                <list>
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="reference"/>
+                                    <field name="ac_id" string="Work Item (A/C)"/>
+                                    <field name="measurement_type" string="Meas. Type" widget="badge"
+                                           decoration-info="measurement_type=='sqft'"
+                                           decoration-success="measurement_type=='cuft'"
+                                           optional="show"/>
+                                    <field name="base_qty" string="Qty"/>
+                                    <field name="uom_id" string="Unit"/>
+                                    <field name="material_total" string="Mat. Total" sum="Mat."/>
+                                    <field name="labour_total" string="Lab. Total" sum="Lab."/>
+                                    <field name="total_cost" string="Line Total" sum="Grand Total"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Notes">
+                            <field name="notes" placeholder="Internal notes…"/>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_construction_project_estimate" model="ir.actions.act_window">
+        <field name="name">Project Estimates</field>
+        <field name="res_model">construction.project.estimate</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <record id="view_estimate_line_copy_wizard_form" model="ir.ui.view">
+        <field name="name">construction.estimate.line.copy.wizard.form</field>
+        <field name="model">construction.estimate.line.copy.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Copy Detailed-Measurement Structure">
+                <sheet>
+                    <group>
+                        <field name="target_line_id" readonly="1"/>
+                        <field name="target_estimate_id" readonly="1"/>
+                        <field name="source_line_id"
+                               options="{'no_create': True, 'no_open': True}"/>
+                        <field name="replace_existing" widget="boolean_toggle"/>
+                    </group>
+                    <p class="text-muted">
+                        Only the section and sub-element <em>names</em> are copied.
+                        Measurement rows are intentionally left blank — the surveyor
+                        fills them in for the new work item.
+                    </p>
+                </sheet>
+                <footer>
+                    <button name="action_copy" string="Copy"
+                            type="object" class="btn-primary"/>
+                    <button string="Cancel" class="btn-secondary"
+                            special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+</odoo>

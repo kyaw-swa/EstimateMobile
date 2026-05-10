@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_construction_ac_list" model="ir.ui.view">
+        <field name="name">construction.ac.list</field>
+        <field name="model">construction.ac</field>
+        <field name="arch" type="xml">
+            <list string="Abstract of Cost">
+                <field name="name"/>
+                <field name="measurement_type" widget="badge"
+                       decoration-info="measurement_type=='sqft'"
+                       decoration-success="measurement_type=='cuft'"/>
+                <field name="material_count" string="Materials"/>
+                <field name="labour_count" string="Labours"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_construction_ac_form" model="ir.ui.view">
+        <field name="name">construction.ac.form</field>
+        <field name="model">construction.ac</field>
+        <field name="arch" type="xml">
+            <form string="Abstract of Cost">
+                <sheet>
+                    <div class="oe_title">
+                        <h1><field name="name" placeholder="A/C Name"/></h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="description"/>
+                            <field name="active"/>
+                        </group>
+                        <group string="Standard Ratio">
+                            <field name="base_quantity"/>
+                            <field name="base_uom_id"/>
+                            <field name="measurement_type" widget="radio"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Materials">
+                            <div class="text-muted mb-2">
+                                Std. Qty = quantity required per the Base Quantity defined above.
+                            </div>
+                            <field name="material_line_ids">
+                                <list editable="bottom">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="material_id"/>
+                                    <field name="uom_id" string="UOM" readonly="1"/>
+                                    <field name="quantity" string="Std. Qty"/>
+                                    <field name="rate"/>
+                                    <field name="line_cost" string="Cost" readonly="1"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Labours">
+                            <div class="text-muted mb-2">
+                                Std. Qty = quantity required per the Base Quantity defined above.
+                            </div>
+                            <field name="labour_line_ids">
+                                <list editable="bottom">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="labour_id"/>
+                                    <field name="uom_id" string="UOM" readonly="1"/>
+                                    <field name="quantity" string="Std. Qty"/>
+                                    <field name="rate"/>
+                                    <field name="line_cost" string="Cost" readonly="1"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_construction_ac" model="ir.actions.act_window">
+        <field name="name">Abstract of Cost</field>
+        <field name="res_model">construction.ac</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+</odoo>

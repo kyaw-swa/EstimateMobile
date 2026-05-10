@@ -1,0 +1,21 @@
+{
+    'name': 'Construction Project Estimation',
+    'version': '19.0.1.3.0',
+    'category': 'Construction',
+    'summary': 'BOQ-based construction project cost estimation',
+    'author': 'Phoe Ku',
+    'depends': ['base', 'mail'],
+    'data': [
+        'security/ir.model.access.csv',
+        'data/construction_uom_data.xml',
+        'views/material_views.xml',
+        'views/labour_views.xml',
+        'views/abstract_of_cost_views.xml',
+        'views/project_estimate_views.xml',
+        'views/menus.xml',
+        'report/project_estimate_report.xml',
+    ],
+    'installable': True,
+    'application': True,
+    'license': 'LGPL-3',
+}
