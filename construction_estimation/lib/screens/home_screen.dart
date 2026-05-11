@@ -19,6 +19,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   int _index = 0; // default tab: Dashboard
 
+  final GlobalKey<DashboardScreenState> _dashboardKey =
+      GlobalKey<DashboardScreenState>();
+
   static const _destinations = [
     _Destination(
       label: 'Home',
@@ -48,36 +51,53 @@ class _HomeScreenState extends State<HomeScreen> {
   ];
 
   late final List<Widget> _screens = [
-    DashboardScreen(onNavigate: _setIndex),
+    DashboardScreen(key: _dashboardKey, onNavigate: _setIndex),
     const MaterialListScreen(),
     const LabourListScreen(),
     const AcListScreen(),
     const EstimateListScreen(),
   ];
 
-  void _setIndex(int i) => setState(() => _index = i);
+  void _setIndex(int i) {
+    setState(() => _index = i);
+    // Returning to the dashboard after editing data elsewhere — refresh KPIs
+    // and recent list so the snapshot stays current.
+    if (i == 0) {
+      _dashboardKey.currentState?.refresh();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final useRail = constraints.maxWidth >= _railBreakpoint;
-        return Scaffold(
-          body: useRail ? _buildWide() : _buildNarrow(),
-          bottomNavigationBar: useRail
-              ? null
-              : NavigationBar(
-                  selectedIndex: _index,
-                  onDestinationSelected: _setIndex,
-                  destinations: [
-                    for (final d in _destinations)
-                      NavigationDestination(
-                        icon: Icon(d.icon),
-                        selectedIcon: Icon(d.selectedIcon),
-                        label: d.label,
-                      ),
-                  ],
-                ),
+        // On non-Home tabs, intercept the system back button: switch back to
+        // Home instead of letting the app exit. On Home tab, let the pop
+        // proceed so the OS handles app exit normally.
+        return PopScope(
+          canPop: _index == 0,
+          onPopInvokedWithResult: (didPop, _) {
+            if (didPop) return;
+            _setIndex(0);
+          },
+          child: Scaffold(
+            body: useRail ? _buildWide() : _buildNarrow(),
+            bottomNavigationBar: useRail
+                ? null
+                : NavigationBar(
+                    selectedIndex: _index,
+                    onDestinationSelected: _setIndex,
+                    destinations: [
+                      for (final d in _destinations)
+                        NavigationDestination(
+                          icon: Icon(d.icon),
+                          selectedIcon: Icon(d.selectedIcon),
+                          label: d.label,
+                        ),
+                    ],
+                  ),
+          ),
         );
       },
     );

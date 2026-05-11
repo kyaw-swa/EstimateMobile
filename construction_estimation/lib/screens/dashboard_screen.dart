@@ -1,15 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
+import '../models/project_estimate.dart';
+import '../repositories/labour_repository.dart';
+import '../repositories/material_repository.dart';
+import '../repositories/project_estimate_repository.dart';
 import '../services/backup_service.dart';
 import '../widgets/kpi_card.dart';
+import '../widgets/numeric_field.dart';
 import '../widgets/rich_list_card.dart';
 import '../widgets/sliver_hero_app_bar.dart';
+import 'project_estimates/estimate_form_screen.dart';
 import 'settings_screen.dart';
 
-/// Dashboard — entry screen with KPIs, recent estimates, quick actions.
-///
-/// Sample data is shown until repositories are wired up (Phase 4).
-class DashboardScreen extends StatelessWidget {
+/// Dashboard — entry screen with live KPIs, recent estimates, quick actions.
+class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key, this.onNavigate});
 
   /// Tab-switch callback wired by HomeScreen — index follows _destinations order
@@ -17,143 +22,270 @@ class DashboardScreen extends StatelessWidget {
   final void Function(int tabIndex)? onNavigate;
 
   @override
+  State<DashboardScreen> createState() => DashboardScreenState();
+}
+
+class DashboardScreenState extends State<DashboardScreen> {
+  final _estimateRepo = ProjectEstimateRepository();
+  final _materialRepo = MaterialRepository();
+  final _labourRepo = LabourRepository();
+
+  bool _loading = true;
+  int _draftCount = 0;
+  int _confirmedCount = 0;
+  int _materialCount = 0;
+  int _labourCount = 0;
+  List<_RecentEstimate> _recent = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    refresh();
+  }
+
+  /// Public so HomeScreen can call via GlobalKey when the dashboard tab
+  /// becomes active again after data was changed elsewhere.
+  Future<void> refresh() async {
+    if (mounted) setState(() => _loading = true);
+    final estimates = await _estimateRepo.findAll();
+    final totals = await _estimateRepo.findTotalsByEstimate();
+    final materials = await _materialRepo.findAll();
+    final labours = await _labourRepo.findAll();
+
+    if (!mounted) return;
+    setState(() {
+      _draftCount =
+          estimates.where((e) => e.state == EstimateState.draft).length;
+      _confirmedCount =
+          estimates.where((e) => e.state == EstimateState.confirmed).length;
+      _materialCount = materials.length;
+      _labourCount = labours.length;
+      _recent = estimates
+          .take(5)
+          .map((e) => _RecentEstimate(
+                estimate: e,
+                total: e.id != null ? (totals[e.id!]?.total ?? 0) : 0,
+              ))
+          .toList(growable: false);
+      _loading = false;
+    });
+  }
+
+  Future<void> _openEstimate(int id) async {
+    final saved = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) =>
+            EstimateFormScreen(repository: _estimateRepo, estimateId: id),
+      ),
+    );
+    if (saved == true) refresh();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return CustomScrollView(
-      slivers: [
-        SliverHeroAppBar(
-          title: 'Dashboard',
-          subtitle: 'EzEstimate',
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.settings_outlined),
-              tooltip: 'Settings',
-              onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => Scaffold(
-                    appBar: AppBar(title: const Text('Settings')),
-                    body: const SettingsScreen(),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-          sliver: SliverList(
-            delegate: SliverChildListDelegate([
-              const _BackupReminderBanner(),
-              _SectionLabel(text: 'Overview'),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(
-                    child: KpiCard(
-                      label: 'Drafts',
-                      value: '0',
-                      icon: Icons.edit_note,
-                      accent: scheme.primary,
+    return RefreshIndicator(
+      onRefresh: refresh,
+      child: CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: [
+          SliverHeroAppBar(
+            title: 'Dashboard',
+            subtitle: 'EzEstimate',
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.settings_outlined),
+                tooltip: 'Settings',
+                onPressed: () async {
+                  await Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => Scaffold(
+                        appBar: AppBar(title: const Text('Settings')),
+                        body: const SettingsScreen(),
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: KpiCard(
-                      label: 'Confirmed',
-                      value: '0',
-                      icon: Icons.check_circle_outline,
-                      accent: scheme.tertiary,
-                    ),
-                  ),
-                ],
+                  );
+                  // Restore from backup can replace all data — refresh on return.
+                  refresh();
+                },
               ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: KpiCard(
-                      label: 'Materials',
-                      value: '0',
-                      icon: Icons.inventory_2_outlined,
-                      accent: scheme.secondary,
-                      onTap: () => onNavigate?.call(1),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: KpiCard(
-                      label: 'Labour types',
-                      value: '0',
-                      icon: Icons.engineering_outlined,
-                      accent: scheme.secondary,
-                      onTap: () => onNavigate?.call(2),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24),
-              _SectionLabel(
-                text: 'Recent estimates',
-                trailing: TextButton(
-                  onPressed: () => onNavigate?.call(4),
-                  child: const Text('See all'),
-                ),
-              ),
-              const SizedBox(height: 8),
-              ..._sampleRecent.map(
-                (e) => Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: RichListCard(
-                    title: e.title,
-                    subtitle: e.subtitle,
-                    trailingPrimary: e.amount,
-                    statusLabel: e.status,
-                    statusColor: _statusColor(e.status, scheme),
-                    leadingIcon: Icons.description_outlined,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 24),
-              _SectionLabel(text: 'Quick actions'),
-              const SizedBox(height: 8),
-              _QuickActions(onNavigate: onNavigate),
-            ]),
+            ],
           ),
-        ),
-      ],
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+            sliver: SliverList(
+              delegate: SliverChildListDelegate([
+                const _BackupReminderBanner(),
+                _SectionLabel(text: 'Overview'),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: KpiCard(
+                        label: 'Drafts',
+                        value: _loading ? '—' : '$_draftCount',
+                        icon: Icons.edit_note,
+                        accent: scheme.primary,
+                        onTap: () => widget.onNavigate?.call(4),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: KpiCard(
+                        label: 'Confirmed',
+                        value: _loading ? '—' : '$_confirmedCount',
+                        icon: Icons.check_circle_outline,
+                        accent: scheme.tertiary,
+                        onTap: () => widget.onNavigate?.call(4),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: KpiCard(
+                        label: 'Materials',
+                        value: _loading ? '—' : '$_materialCount',
+                        icon: Icons.inventory_2_outlined,
+                        accent: scheme.secondary,
+                        onTap: () => widget.onNavigate?.call(1),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: KpiCard(
+                        label: 'Labour types',
+                        value: _loading ? '—' : '$_labourCount',
+                        icon: Icons.engineering_outlined,
+                        accent: scheme.secondary,
+                        onTap: () => widget.onNavigate?.call(2),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                _SectionLabel(
+                  text: 'Recent estimates',
+                  trailing: TextButton(
+                    onPressed: () => widget.onNavigate?.call(4),
+                    child: const Text('See all'),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                if (_loading)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 24),
+                    child: Center(child: CircularProgressIndicator()),
+                  )
+                else if (_recent.isEmpty)
+                  _RecentEmpty(onCreate: () => widget.onNavigate?.call(4))
+                else
+                  ..._recent.map(
+                    (r) => Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: RichListCard(
+                        title: r.estimate.name,
+                        subtitle: _recentSubtitle(r.estimate),
+                        trailingPrimary: formatCurrency(r.total),
+                        statusLabel: r.estimate.state.label,
+                        statusColor: _statusColor(r.estimate.state, scheme),
+                        leadingIcon: Icons.description_outlined,
+                        onTap: r.estimate.id == null
+                            ? null
+                            : () => _openEstimate(r.estimate.id!),
+                      ),
+                    ),
+                  ),
+                const SizedBox(height: 24),
+                _SectionLabel(text: 'Quick actions'),
+                const SizedBox(height: 8),
+                _QuickActions(onNavigate: widget.onNavigate),
+              ]),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
-  static Color _statusColor(String status, ColorScheme scheme) {
-    switch (status.toLowerCase()) {
-      case 'draft':
-        return scheme.outline;
-      case 'confirmed':
-        return scheme.tertiary;
-      case 'done':
-        return scheme.primary;
-      default:
-        return scheme.secondary;
+  static String _recentSubtitle(ProjectEstimate e) {
+    final parts = <String>[];
+    if (e.customerName != null && e.customerName!.isNotEmpty) {
+      parts.add(e.customerName!);
     }
+    if (e.date != null) {
+      parts.add(DateFormat('d MMM').format(e.date!));
+    }
+    return parts.isEmpty ? '—' : parts.join(' · ');
+  }
+
+  static Color _statusColor(EstimateState state, ColorScheme scheme) {
+    return switch (state) {
+      EstimateState.draft => scheme.outline,
+      EstimateState.confirmed => scheme.tertiary,
+      EstimateState.cancelled => scheme.error,
+    };
   }
 }
 
-class _SampleEstimate {
-  const _SampleEstimate(this.title, this.subtitle, this.amount, this.status);
-  final String title;
-  final String subtitle;
-  final String amount;
-  final String status;
+class _RecentEstimate {
+  const _RecentEstimate({required this.estimate, required this.total});
+  final ProjectEstimate estimate;
+  final double total;
 }
 
-const _sampleRecent = <_SampleEstimate>[
-  _SampleEstimate(
-      '(Sample) Ko Aung House', 'EST/2026/003 · May 8', 'K 2.15M', 'Draft'),
-  _SampleEstimate(
-      '(Sample) Office Building', 'EST/2026/002 · May 4', 'K 8.04M', 'Done'),
-  _SampleEstimate('(Sample) Warehouse Extension', 'EST/2026/001 · Apr 28',
-      'K 1.20M', 'Confirmed'),
-];
+class _RecentEmpty extends StatelessWidget {
+  const _RecentEmpty({required this.onCreate});
+
+  final VoidCallback onCreate;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 20, 16, 20),
+        child: Row(
+          children: [
+            Icon(Icons.description_outlined,
+                color: scheme.onSurfaceVariant, size: 28),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Estimate မရှိသေးပါ',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: scheme.onSurface,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'ပထမဆုံး estimate ဖန်တီးပါ',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            FilledButton.tonal(
+              onPressed: onCreate,
+              child: const Text('Create'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 class _SectionLabel extends StatelessWidget {
   const _SectionLabel({required this.text, this.trailing});
