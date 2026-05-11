@@ -28,7 +28,10 @@ class DatabaseHelper {
   ///       `location`, `client_name` → `customer_name`; estimate_line gains
   ///       dimensions/measurement_type/manual_qty; line_material/labour
   ///       gain template_qty/template_base_qty/is_manual/per.
-  static const int _dbVersion = 5;
+  /// - v6: drop manual override fields — `manual_qty` from estimate_line,
+  ///       `is_manual` from estimate_line_material/labour. All quantities
+  ///       are derived from dimensions + A/C template.
+  static const int _dbVersion = 6;
 
   Database? _database;
 
@@ -74,7 +77,7 @@ class DatabaseHelper {
     // Dev-stage policy: any version < current → full rebuild. Acceptable
     // because we have no production users; both v1 (wrong schema) and v2
     // (Odoo-only UoM seed) need their seed data refreshed for v3.
-    if (oldVersion < 5) {
+    if (oldVersion < 6) {
       await _rebuildAll(db);
     }
   }
@@ -253,8 +256,8 @@ class DatabaseHelper {
     );
 
     // Mirrors Odoo construction.estimate.line. Stores dimension inputs
-    // (length/breadth/height in ft + in) and `manual_qty`. Derived fields
-    // (area, volume, base_qty, totals) are computed in Dart, not stored.
+    // (length/breadth/height in ft + in). Derived fields (area, volume,
+    // base_qty, totals) are computed in Dart, not stored.
     // `measurement_type` is denormalized from ac_id (Odoo: related store).
     batch.execute('''
       CREATE TABLE construction_estimate_line (
@@ -272,7 +275,6 @@ class DatabaseHelper {
         breadth_in        REAL NOT NULL DEFAULT 0,
         height_ft         REAL NOT NULL DEFAULT 0,
         height_in         REAL NOT NULL DEFAULT 0,
-        manual_qty        REAL NOT NULL DEFAULT 0,
         FOREIGN KEY (estimate_id)
           REFERENCES construction_project_estimate(id) ON DELETE CASCADE,
         FOREIGN KEY (ac_id) REFERENCES construction_ac(id) ON DELETE RESTRICT,
@@ -284,9 +286,9 @@ class DatabaseHelper {
       'ON construction_estimate_line(estimate_id)',
     );
 
-    // Material detail rows — copied from ac.material_line_ids on AC selection,
-    // then per-row overridable. `template_qty` × ratio gives suggested_qty
-    // (computed); `is_manual` locks `quantity` against recompute.
+    // Material detail rows — copied from ac.material_line_ids on AC selection.
+    // `template_qty` × ratio gives suggested_qty (computed); `quantity` always
+    // tracks suggestedQty on save.
     batch.execute('''
       CREATE TABLE construction_estimate_line_material (
         id                  INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -296,7 +298,6 @@ class DatabaseHelper {
         reference           TEXT,
         template_qty        REAL NOT NULL DEFAULT 0,
         template_base_qty   REAL NOT NULL DEFAULT 1,
-        is_manual           INTEGER NOT NULL DEFAULT 0,
         quantity            REAL NOT NULL DEFAULT 0,
         rate                REAL NOT NULL DEFAULT 0,
         per                 REAL NOT NULL DEFAULT 1,
@@ -321,7 +322,6 @@ class DatabaseHelper {
         reference           TEXT,
         template_qty        REAL NOT NULL DEFAULT 0,
         template_base_qty   REAL NOT NULL DEFAULT 1,
-        is_manual           INTEGER NOT NULL DEFAULT 0,
         quantity            REAL NOT NULL DEFAULT 0,
         rate                REAL NOT NULL DEFAULT 0,
         per                 REAL NOT NULL DEFAULT 1,

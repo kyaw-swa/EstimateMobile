@@ -370,11 +370,6 @@ class _EstimateFormScreenState extends State<EstimateFormScreen> {
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _addLine,
-        icon: const Icon(Icons.add),
-        label: const Text('Add Line'),
-      ),
     );
   }
 
@@ -496,12 +491,22 @@ class _EstimateFormScreenState extends State<EstimateFormScreen> {
                 color: scheme.primary,
               ),
             ),
+            if (_lines.isNotEmpty)
+              TextButton.icon(
+                onPressed: _addLine,
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('Add'),
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  visualDensity: VisualDensity.compact,
+                ),
+              ),
           ],
         ),
         const SizedBox(height: 8),
         if (_lines.isEmpty)
           _emptyLines()
-        else
+        else ...[
           ..._lines.asMap().entries.map((entry) {
             final i = entry.key;
             final line = entry.value;
@@ -514,6 +519,13 @@ class _EstimateFormScreenState extends State<EstimateFormScreen> {
               ),
             );
           }),
+          const SizedBox(height: 4),
+          OutlinedButton.icon(
+            onPressed: _addLine,
+            icon: const Icon(Icons.add),
+            label: const Text('Add Work Item'),
+          ),
+        ],
       ],
     );
   }
@@ -539,12 +551,11 @@ class _EstimateFormScreenState extends State<EstimateFormScreen> {
             'No work items yet',
             style: TextStyle(color: scheme.onSurfaceVariant),
           ),
-          Text(
-            'Tap + to add an A/C work item',
-            style: TextStyle(
-              fontSize: 12,
-              color: scheme.onSurfaceVariant,
-            ),
+          const SizedBox(height: 12),
+          FilledButton.tonalIcon(
+            onPressed: _addLine,
+            icon: const Icon(Icons.add),
+            label: const Text('Add Work Item'),
           ),
         ],
       ),
@@ -559,16 +570,15 @@ class _EstimateFormScreenState extends State<EstimateFormScreen> {
       child: SafeArea(
         top: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-          child: Row(
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Expanded(child: _Totals(label: 'Material', value: mat)),
-              Container(width: 1, height: 32, color: scheme.outlineVariant),
-              Expanded(child: _Totals(label: 'Labour', value: lab)),
-              Container(width: 1, height: 32, color: scheme.outlineVariant),
-              Expanded(
-                child: _Totals(label: 'Total', value: total, emphasize: true),
-              ),
+              _Totals(label: 'Material', value: mat),
+              Divider(height: 10, color: scheme.outlineVariant),
+              _Totals(label: 'Labour', value: lab),
+              Divider(height: 10, color: scheme.outlineVariant),
+              _Totals(label: 'Total', value: total, emphasize: true),
             ],
           ),
         ),
@@ -762,22 +772,23 @@ class _Totals extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Column(
+    return Row(
       children: [
-        Text(
-          label.toUpperCase(),
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w600,
-            color: scheme.onSurfaceVariant,
-            letterSpacing: 0.5,
+        Expanded(
+          child: Text(
+            label.toUpperCase(),
+            style: TextStyle(
+              fontSize: emphasize ? 12 : 11,
+              fontWeight: emphasize ? FontWeight.w700 : FontWeight.w600,
+              color: emphasize ? scheme.primary : scheme.onSurfaceVariant,
+              letterSpacing: 0.5,
+            ),
           ),
         ),
-        const SizedBox(height: 2),
         Text(
           formatCurrency(value),
           style: TextStyle(
-            fontSize: emphasize ? 16 : 14,
+            fontSize: emphasize ? 18 : 14,
             fontWeight: FontWeight.w700,
             color: emphasize ? scheme.primary : scheme.onSurface,
           ),

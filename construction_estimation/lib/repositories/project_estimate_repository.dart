@@ -237,12 +237,13 @@ class ProjectEstimateRepository {
         lineMap.remove('id');
         final lineId = await txn.insert(_lineTable, lineMap);
 
-        // Sync non-manual quantities to suggestedQty before write.
+        // Quantities always track suggestedQty (derived from A/C template +
+        // line dimensions). There is no manual override.
         for (final d in line.materialDetails) {
           final effective = d.copyWith(
             lineId: lineId,
             parentBaseQty: line.baseQty,
-            quantity: d.isManual ? d.quantity : d.suggestedQty,
+            quantity: d.suggestedQty,
           );
           final m = effective.toMap()..remove('id');
           await txn.insert(_matTable, m);
@@ -251,7 +252,7 @@ class ProjectEstimateRepository {
           final effective = d.copyWith(
             lineId: lineId,
             parentBaseQty: line.baseQty,
-            quantity: d.isManual ? d.quantity : d.suggestedQty,
+            quantity: d.suggestedQty,
           );
           final m = effective.toMap()..remove('id');
           await txn.insert(_labTable, m);

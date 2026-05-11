@@ -160,7 +160,6 @@ class EstimateLine {
     this.breadthIn = 0,
     this.heightFt = 0,
     this.heightIn = 0,
-    this.manualQty = 0,
     List<EstimateLineMaterial>? materialDetails,
     List<EstimateLineLabour>? labourDetails,
   })  : materialDetails = materialDetails ?? const [],
@@ -192,9 +191,6 @@ class EstimateLine {
   final double heightFt;
   final double heightIn;
 
-  /// When > 0, overrides the computed area/volume as the base quantity.
-  final double manualQty;
-
   final List<EstimateLineMaterial> materialDetails;
   final List<EstimateLineLabour> labourDetails;
 
@@ -216,11 +212,9 @@ class EstimateLine {
           : 0;
 
   /// Effective base quantity used to scale material/labour suggested qtys.
-  /// Manual override beats computed area/volume.
-  double get baseQty {
-    if (manualQty > 0) return manualQty;
-    return measurementType == MeasurementType.cuft ? volume : area;
-  }
+  /// Always derived from dimensions — area for sqft, volume for cuft.
+  double get baseQty =>
+      measurementType == MeasurementType.cuft ? volume : area;
 
   double get materialTotal =>
       materialDetails.fold(0, (s, d) => s + d.amount);
@@ -246,7 +240,6 @@ class EstimateLine {
     double? breadthIn,
     double? heightFt,
     double? heightIn,
-    double? manualQty,
     List<EstimateLineMaterial>? materialDetails,
     List<EstimateLineLabour>? labourDetails,
   }) {
@@ -267,7 +260,6 @@ class EstimateLine {
       breadthIn: breadthIn ?? this.breadthIn,
       heightFt: heightFt ?? this.heightFt,
       heightIn: heightIn ?? this.heightIn,
-      manualQty: manualQty ?? this.manualQty,
       materialDetails: materialDetails ?? this.materialDetails,
       labourDetails: labourDetails ?? this.labourDetails,
     );
@@ -288,7 +280,6 @@ class EstimateLine {
       'breadth_in': breadthIn,
       'height_ft': heightFt,
       'height_in': heightIn,
-      'manual_qty': manualQty,
     };
   }
 
@@ -315,7 +306,6 @@ class EstimateLine {
       breadthIn: (map['breadth_in'] as num?)?.toDouble() ?? 0,
       heightFt: (map['height_ft'] as num?)?.toDouble() ?? 0,
       heightIn: (map['height_in'] as num?)?.toDouble() ?? 0,
-      manualQty: (map['manual_qty'] as num?)?.toDouble() ?? 0,
       materialDetails: materialDetails,
       labourDetails: labourDetails,
     );
@@ -333,8 +323,8 @@ class EstimateLine {
 ///   suggested_qty = (parent.baseQty / template_base_qty) × template_qty
 ///   amount        = (quantity × rate) / per
 ///
-/// `is_manual` locks `quantity` against recompute. When false, callers should
-/// keep `quantity == suggestedQty` (handled by repository on cascade save).
+/// `quantity` always tracks `suggestedQty` — there is no manual override.
+/// Repository syncs the stored quantity to suggestedQty on save.
 class EstimateLineMaterial {
   EstimateLineMaterial({
     this.id,
@@ -346,7 +336,6 @@ class EstimateLineMaterial {
     this.reference,
     this.templateQty = 0,
     this.templateBaseQty = 1,
-    this.isManual = false,
     this.quantity = 0,
     this.rate = 0,
     this.per = 1,
@@ -365,10 +354,8 @@ class EstimateLineMaterial {
 
   final double templateQty;
   final double templateBaseQty;
-  final bool isManual;
 
-  /// Stored quantity. When `isManual` is false, this should track
-  /// `suggestedQty`. Repository ensures sync on save.
+  /// Stored quantity. Tracks `suggestedQty`; repository syncs on save.
   final double quantity;
 
   final double rate;
@@ -384,10 +371,12 @@ class EstimateLineMaterial {
     return (parentBaseQty / base) * templateQty;
   }
 
-  /// `(quantity × rate) / per`. Falls back to per=1 when zero.
+  /// `(suggestedQty × rate) / per`. Falls back to per=1 when zero.
+  /// Uses suggestedQty (live from dimensions) rather than the stored
+  /// `quantity` so totals stay correct before the repository syncs on save.
   double get amount {
     final divisor = per == 0 ? 1.0 : per;
-    return (quantity * rate) / divisor;
+    return (suggestedQty * rate) / divisor;
   }
 
   EstimateLineMaterial copyWith({
@@ -401,7 +390,6 @@ class EstimateLineMaterial {
     bool clearReference = false,
     double? templateQty,
     double? templateBaseQty,
-    bool? isManual,
     double? quantity,
     double? rate,
     double? per,
@@ -417,7 +405,6 @@ class EstimateLineMaterial {
       reference: clearReference ? null : (reference ?? this.reference),
       templateQty: templateQty ?? this.templateQty,
       templateBaseQty: templateBaseQty ?? this.templateBaseQty,
-      isManual: isManual ?? this.isManual,
       quantity: quantity ?? this.quantity,
       rate: rate ?? this.rate,
       per: per ?? this.per,
@@ -434,7 +421,6 @@ class EstimateLineMaterial {
       'reference': reference,
       'template_qty': templateQty,
       'template_base_qty': templateBaseQty,
-      'is_manual': isManual ? 1 : 0,
       'quantity': quantity,
       'rate': rate,
       'per': per,
@@ -455,7 +441,6 @@ class EstimateLineMaterial {
       reference: map['reference'] as String?,
       templateQty: (map['template_qty'] as num?)?.toDouble() ?? 0,
       templateBaseQty: (map['template_base_qty'] as num?)?.toDouble() ?? 1,
-      isManual: (map['is_manual'] as int? ?? 0) == 1,
       quantity: (map['quantity'] as num?)?.toDouble() ?? 0,
       rate: (map['rate'] as num?)?.toDouble() ?? 0,
       per: (map['per'] as num?)?.toDouble() ?? 1,
@@ -475,7 +460,6 @@ class EstimateLineLabour {
     this.reference,
     this.templateQty = 0,
     this.templateBaseQty = 1,
-    this.isManual = false,
     this.quantity = 0,
     this.rate = 0,
     this.per = 1,
@@ -494,7 +478,6 @@ class EstimateLineLabour {
 
   final double templateQty;
   final double templateBaseQty;
-  final bool isManual;
 
   final double quantity;
   final double rate;
@@ -523,7 +506,6 @@ class EstimateLineLabour {
     bool clearReference = false,
     double? templateQty,
     double? templateBaseQty,
-    bool? isManual,
     double? quantity,
     double? rate,
     double? per,
@@ -539,7 +521,6 @@ class EstimateLineLabour {
       reference: clearReference ? null : (reference ?? this.reference),
       templateQty: templateQty ?? this.templateQty,
       templateBaseQty: templateBaseQty ?? this.templateBaseQty,
-      isManual: isManual ?? this.isManual,
       quantity: quantity ?? this.quantity,
       rate: rate ?? this.rate,
       per: per ?? this.per,
@@ -556,7 +537,6 @@ class EstimateLineLabour {
       'reference': reference,
       'template_qty': templateQty,
       'template_base_qty': templateBaseQty,
-      'is_manual': isManual ? 1 : 0,
       'quantity': quantity,
       'rate': rate,
       'per': per,
@@ -577,7 +557,6 @@ class EstimateLineLabour {
       reference: map['reference'] as String?,
       templateQty: (map['template_qty'] as num?)?.toDouble() ?? 0,
       templateBaseQty: (map['template_base_qty'] as num?)?.toDouble() ?? 1,
-      isManual: (map['is_manual'] as int? ?? 0) == 1,
       quantity: (map['quantity'] as num?)?.toDouble() ?? 0,
       rate: (map['rate'] as num?)?.toDouble() ?? 0,
       per: (map['per'] as num?)?.toDouble() ?? 1,

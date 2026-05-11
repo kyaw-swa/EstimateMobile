@@ -31,7 +31,7 @@ class BackupService {
 
   /// Schema version baked into JSON exports. Matches `DatabaseHelper._dbVersion`
   /// at the time the export was written; restore refuses higher versions.
-  static const int jsonSchemaVersion = 5;
+  static const int jsonSchemaVersion = 6;
 
   /// Table list in FK-dependency order (parents first).
   /// Restore inserts in this order; export iterates in this order.

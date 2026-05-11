@@ -435,37 +435,18 @@ class _AcFormScreenState extends State<AcFormScreen> {
       child: SafeArea(
         top: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-          child: Row(
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Expanded(
-                child: _Totals(
-                  label: 'Material',
-                  value: _materialCost,
-                ),
-              ),
-              Container(
-                width: 1,
-                height: 32,
-                color: scheme.outlineVariant,
-              ),
-              Expanded(
-                child: _Totals(
-                  label: 'Labour',
-                  value: _labourCost,
-                ),
-              ),
-              Container(
-                width: 1,
-                height: 32,
-                color: scheme.outlineVariant,
-              ),
-              Expanded(
-                child: _Totals(
-                  label: 'Total',
-                  value: _totalCost,
-                  emphasize: true,
-                ),
+              _Totals(label: 'Material', value: _materialCost),
+              Divider(height: 10, color: scheme.outlineVariant),
+              _Totals(label: 'Labour', value: _labourCost),
+              Divider(height: 10, color: scheme.outlineVariant),
+              _Totals(
+                label: 'Total',
+                value: _totalCost,
+                emphasize: true,
               ),
             ],
           ),
@@ -727,23 +708,23 @@ class _Totals extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.center,
+    return Row(
       children: [
-        Text(
-          label.toUpperCase(),
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w600,
-            color: scheme.onSurfaceVariant,
-            letterSpacing: 0.5,
+        Expanded(
+          child: Text(
+            label.toUpperCase(),
+            style: TextStyle(
+              fontSize: emphasize ? 12 : 11,
+              fontWeight: emphasize ? FontWeight.w700 : FontWeight.w600,
+              color: emphasize ? scheme.primary : scheme.onSurfaceVariant,
+              letterSpacing: 0.5,
+            ),
           ),
         ),
-        const SizedBox(height: 2),
         Text(
           formatCurrency(value),
           style: TextStyle(
-            fontSize: emphasize ? 16 : 14,
+            fontSize: emphasize ? 18 : 14,
             fontWeight: FontWeight.w700,
             color: emphasize ? scheme.primary : scheme.onSurface,
           ),
