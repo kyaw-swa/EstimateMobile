@@ -35,12 +35,10 @@ class AcFormScreen extends StatefulWidget {
   State<AcFormScreen> createState() => _AcFormScreenState();
 }
 
-class _AcFormScreenState extends State<AcFormScreen>
-    with SingleTickerProviderStateMixin {
+class _AcFormScreenState extends State<AcFormScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameCtl = TextEditingController();
   final _descCtl = TextEditingController();
-  late final TabController _tabs;
 
   late final UomRepository _uomRepo = widget.uomRepository ?? UomRepository();
   late final MaterialRepository _matRepo =
@@ -70,7 +68,6 @@ class _AcFormScreenState extends State<AcFormScreen>
   @override
   void initState() {
     super.initState();
-    _tabs = TabController(length: 2, vsync: this);
     if (_isEdit) {
       _loading = true;
       _loadExisting();
@@ -79,7 +76,6 @@ class _AcFormScreenState extends State<AcFormScreen>
 
   @override
   void dispose() {
-    _tabs.dispose();
     _nameCtl.dispose();
     _descCtl.dispose();
     super.dispose();
@@ -292,26 +288,20 @@ class _AcFormScreenState extends State<AcFormScreen>
                 : const Text('Save'),
           ),
         ],
-        bottom: TabBar(
-          controller: _tabs,
-          tabs: [
-            Tab(text: 'Materials (${_materialLines.length})'),
-            Tab(text: 'Labour (${_labourLines.length})'),
-          ],
-        ),
       ),
       body: Form(
         key: _formKey,
         child: Column(
           children: [
-            _buildHeader(),
-            const Divider(height: 1),
             Expanded(
-              child: TabBarView(
-                controller: _tabs,
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
                 children: [
-                  _buildMaterialTab(),
-                  _buildLabourTab(),
+                  _buildHeaderFields(),
+                  const SizedBox(height: 20),
+                  _buildMaterialsSection(),
+                  const SizedBox(height: 20),
+                  _buildLaboursSection(),
                 ],
               ),
             ),
@@ -319,160 +309,121 @@ class _AcFormScreenState extends State<AcFormScreen>
           ],
         ),
       ),
-      floatingActionButton: AnimatedBuilder(
-        animation: _tabs,
-        builder: (_, __) {
-          final isMat = _tabs.index == 0;
-          return FloatingActionButton.extended(
-            onPressed: isMat ? _addMaterialLine : _addLabourLine,
-            icon: const Icon(Icons.add),
-            label: Text(isMat ? 'Add Material' : 'Add Labour'),
-          );
-        },
-      ),
     );
   }
 
-  Widget _buildHeader() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          TextFormField(
-            controller: _nameCtl,
-            autofocus: !_isEdit,
-            textInputAction: TextInputAction.next,
-            decoration: const InputDecoration(
-              labelText: 'Name *',
-              hintText: 'e.g. RC slab 4" thk per 1000 Sqft',
+  Widget _buildHeaderFields() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        TextFormField(
+          controller: _nameCtl,
+          autofocus: !_isEdit,
+          textInputAction: TextInputAction.next,
+          decoration: const InputDecoration(
+            labelText: 'Name *',
+            hintText: 'e.g. RC slab 4" thk per 1000 Sqft',
+          ),
+          validator: (v) =>
+              (v == null || v.trim().isEmpty) ? 'Name လိုအပ်ပါတယ်' : null,
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              flex: 2,
+              child: NumericField(
+                label: 'Base Qty',
+                value: _baseQuantity,
+                decimalPlaces: 4,
+                required: true,
+                onChanged: (v) => _baseQuantity = v,
+              ),
             ),
-            validator: (v) =>
-                (v == null || v.trim().isEmpty) ? 'Name လိုအပ်ပါတယ်' : null,
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                flex: 2,
-                child: NumericField(
-                  label: 'Base Qty',
-                  value: _baseQuantity,
-                  decimalPlaces: 4,
-                  required: true,
-                  onChanged: (v) => _baseQuantity = v,
-                ),
+            const SizedBox(width: 12),
+            Expanded(
+              flex: 3,
+              child: Many2onePicker<UnitOfMeasure>(
+                label: 'Base UoM',
+                selectedId: _baseUomId,
+                displayText: _baseUomName,
+                searchItems: _searchAllUoms,
+                itemId: (u) => u.id!,
+                itemLabel: (u) => u.name,
+                itemSubtitle: (u) => u.uomType.label,
+                onChanged: (id, item) => setState(() {
+                  _baseUomId = id;
+                  _baseUomName = item?.name;
+                }),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                flex: 3,
-                child: Many2onePicker<UnitOfMeasure>(
-                  label: 'Base UoM',
-                  selectedId: _baseUomId,
-                  displayText: _baseUomName,
-                  searchItems: _searchAllUoms,
-                  itemId: (u) => u.id!,
-                  itemLabel: (u) => u.name,
-                  itemSubtitle: (u) => u.uomType.label,
-                  onChanged: (id, item) => setState(() {
-                    _baseUomId = id;
-                    _baseUomName = item?.name;
-                  }),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          SelectionDropdown<MeasurementType>(
-            label: 'Measurement Type',
-            required: true,
-            value: _measurementType,
-            values: MeasurementType.values,
-            labelOf: (t) => t.label,
-            iconOf: (t) => t == MeasurementType.sqft
-                ? Icons.crop_square
-                : Icons.view_in_ar_outlined,
-            onChanged: (v) {
-              if (v != null) setState(() => _measurementType = v);
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMaterialTab() {
-    if (_materialLines.isEmpty) {
-      return _emptyTab(
-        icon: Icons.inventory_2_outlined,
-        message: 'No material lines yet',
-      );
-    }
-    return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(8, 8, 8, 96),
-      itemCount: _materialLines.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 8),
-      itemBuilder: (_, i) {
-        final line = _materialLines[i];
-        return _MaterialLineCard(
-          line: line,
-          onEdit: () async {
-            final updated = await _editMaterialDialog(line);
-            if (updated != null) _editMaterialLine(i, updated);
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        SelectionDropdown<MeasurementType>(
+          label: 'Measurement Type',
+          required: true,
+          value: _measurementType,
+          values: MeasurementType.values,
+          labelOf: (t) => t.label,
+          iconOf: (t) => t == MeasurementType.sqft
+              ? Icons.crop_square
+              : Icons.view_in_ar_outlined,
+          onChanged: (v) {
+            if (v != null) setState(() => _measurementType = v);
           },
-          onDelete: () => _removeMaterialLine(i),
-        );
-      },
+        ),
+      ],
     );
   }
 
-  Widget _buildLabourTab() {
-    if (_labourLines.isEmpty) {
-      return _emptyTab(
-        icon: Icons.engineering_outlined,
-        message: 'No labour lines yet',
-      );
-    }
-    return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(8, 8, 8, 96),
-      itemCount: _labourLines.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 8),
-      itemBuilder: (_, i) {
-        final line = _labourLines[i];
-        return _LabourLineCard(
-          line: line,
-          onEdit: () async {
-            final updated = await _editLabourDialog(line);
-            if (updated != null) _editLabourLine(i, updated);
-          },
-          onDelete: () => _removeLabourLine(i),
-        );
-      },
-    );
-  }
-
-  Widget _emptyTab({required IconData icon, required String message}) {
-    final scheme = Theme.of(context).colorScheme;
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 48, color: scheme.onSurfaceVariant),
-          const SizedBox(height: 12),
-          Text(
-            message,
-            style: TextStyle(color: scheme.onSurfaceVariant),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Tap + to add',
-            style: TextStyle(
-              fontSize: 12,
-              color: scheme.onSurfaceVariant,
+  Widget _buildMaterialsSection() {
+    return _LineSection(
+      icon: Icons.inventory_2_outlined,
+      title: 'Materials',
+      count: _materialLines.length,
+      onAdd: _addMaterialLine,
+      addLabel: 'Add Material',
+      emptyMessage: 'Material line မရှိသေးပါ',
+      children: [
+        for (var i = 0; i < _materialLines.length; i++)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: _MaterialLineCard(
+              line: _materialLines[i],
+              onEdit: () async {
+                final updated = await _editMaterialDialog(_materialLines[i]);
+                if (updated != null) _editMaterialLine(i, updated);
+              },
+              onDelete: () => _removeMaterialLine(i),
             ),
           ),
-        ],
-      ),
+      ],
+    );
+  }
+
+  Widget _buildLaboursSection() {
+    return _LineSection(
+      icon: Icons.engineering_outlined,
+      title: 'Labours',
+      count: _labourLines.length,
+      onAdd: _addLabourLine,
+      addLabel: 'Add Labour',
+      emptyMessage: 'Labour line မရှိသေးပါ',
+      children: [
+        for (var i = 0; i < _labourLines.length; i++)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: _LabourLineCard(
+              line: _labourLines[i],
+              onEdit: () async {
+                final updated = await _editLabourDialog(_labourLines[i]);
+                if (updated != null) _editLabourLine(i, updated);
+              },
+              onDelete: () => _removeLabourLine(i),
+            ),
+          ),
+      ],
     );
   }
 
@@ -550,6 +501,83 @@ class _AcFormScreenState extends State<AcFormScreen>
         onSave: (qty, rate) =>
             line.copyWith(quantity: qty, rate: rate),
       ),
+    );
+  }
+}
+
+// ──────────────── Line section (header + add + cards or empty) ────────────────
+
+class _LineSection extends StatelessWidget {
+  const _LineSection({
+    required this.icon,
+    required this.title,
+    required this.count,
+    required this.onAdd,
+    required this.addLabel,
+    required this.emptyMessage,
+    required this.children,
+  });
+
+  final IconData icon;
+  final String title;
+  final int count;
+  final VoidCallback onAdd;
+  final String addLabel;
+  final String emptyMessage;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Icon(icon, size: 18, color: scheme.primary),
+            const SizedBox(width: 8),
+            Text(
+              '${title.toUpperCase()} ($count)',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1,
+                color: scheme.primary,
+              ),
+            ),
+            const Spacer(),
+            TextButton.icon(
+              onPressed: onAdd,
+              icon: const Icon(Icons.add, size: 18),
+              label: Text(addLabel),
+              style: TextButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        if (children.isEmpty)
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+            decoration: BoxDecoration(
+              color: scheme.surfaceContainerHighest.withValues(alpha: 0.3),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: scheme.outlineVariant),
+            ),
+            child: Center(
+              child: Text(
+                emptyMessage,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: scheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+          )
+        else
+          ...children,
+      ],
     );
   }
 }

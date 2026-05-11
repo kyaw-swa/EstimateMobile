@@ -52,20 +52,24 @@
   Measurement) — Odoo's `construction.estimate.line.section` etc.
 
 ### Phase 5: Reports
-- [ ] BOQ PDF generation (pdf package)
-  - [ ] Layout matching Odoo QWeb report
-  - [ ] Print / share / save to device
+- [x] BOQ PDF generation (pdf package)
+  - [x] Layout matching Odoo QWeb report (header/meta + numbered work items
+        with nested Material/Labour sub-rows, per-line subtotal, grand totals)
+  - [x] Print / share / save to device (printing.layoutPdf + sharePdf)
+  - [x] Access points: Estimate form AppBar menu + list-tile menu
 
 ### Phase 6: Backup & Polish
-- [ ] Backup screen (Settings)
-  - [ ] Export full database file
-  - [ ] Export to JSON
-  - [ ] Export to CSV per model
-  - [ ] Restore from backup file
-- [ ] Backup reminder (7-day)
-- [ ] App icon, splash screen
-- [ ] Error handling, empty states
-- [ ] flutter analyze clean
+- [x] Backup screen (Settings)
+  - [x] Export full database file (`.db` copy via share_plus)
+  - [x] Export to JSON (schema_version + all 10 tables)
+  - [x] Export to CSV per model (one .csv per table, multi-file share)
+  - [x] Restore from backup file (.db / .json — wipes then re-inserts)
+- [x] Backup reminder (7-day) — sidecar `last_backup_at.txt` + dashboard
+      banner that links straight into Settings
+- [ ] App icon, splash screen — deferred (needs design assets)
+- [x] Error handling, empty states — all list screens use EmptyState; errors
+      surface via ScaffoldMessenger snackbars
+- [x] flutter analyze clean
 
 ## Notes / Decisions
 - Single user app — no authentication needed

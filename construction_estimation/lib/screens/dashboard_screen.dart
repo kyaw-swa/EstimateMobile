@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../services/backup_service.dart';
 import '../widgets/kpi_card.dart';
 import '../widgets/rich_list_card.dart';
 import '../widgets/sliver_hero_app_bar.dart';
@@ -42,6 +43,7 @@ class DashboardScreen extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
           sliver: SliverList(
             delegate: SliverChildListDelegate([
+              const _BackupReminderBanner(),
               _SectionLabel(text: 'Overview'),
               const SizedBox(height: 8),
               Row(
@@ -211,6 +213,100 @@ class _QuickActions extends StatelessWidget {
             onTap: () => onNavigate?.call(3),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Reminder banner shown on the dashboard when no backup has been taken
+/// in the last 7 days. Tapping it opens the Settings screen so the user
+/// can run an export.
+class _BackupReminderBanner extends StatefulWidget {
+  const _BackupReminderBanner();
+
+  @override
+  State<_BackupReminderBanner> createState() => _BackupReminderBannerState();
+}
+
+class _BackupReminderBannerState extends State<_BackupReminderBanner> {
+  final _backup = BackupService();
+  bool _show = false;
+  bool _checked = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _check();
+  }
+
+  Future<void> _check() async {
+    final due = await _backup.needsBackupReminder();
+    if (!mounted) return;
+    setState(() {
+      _show = due;
+      _checked = true;
+    });
+  }
+
+  Future<void> _openSettings() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => Scaffold(
+          appBar: AppBar(title: const Text('Settings')),
+          body: const SettingsScreen(),
+        ),
+      ),
+    );
+    if (!mounted) return;
+    _check();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_checked || !_show) return const SizedBox.shrink();
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Material(
+        color: scheme.errorContainer,
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: _openSettings,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(14, 12, 8, 12),
+            child: Row(
+              children: [
+                Icon(Icons.warning_amber_outlined,
+                    color: scheme.onErrorContainer),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Backup overdue',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          color: scheme.onErrorContainer,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '7 ရက်ထက် ပိုကြာပြီ။ Settings → Backup ကို သွား export လုပ်ပါ။',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: scheme.onErrorContainer,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(Icons.chevron_right, color: scheme.onErrorContainer),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

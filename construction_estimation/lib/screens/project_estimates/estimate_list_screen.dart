@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 
 import '../../models/project_estimate.dart';
 import '../../repositories/project_estimate_repository.dart';
+import '../../services/boq_pdf_service.dart';
 import '../../widgets/confirm_dialog.dart';
 import '../../widgets/empty_state.dart';
 import '../../widgets/numeric_field.dart';
@@ -65,6 +66,27 @@ class _EstimateListScreenState extends State<EstimateListScreen> {
       ),
     );
     if (saved == true) _load();
+  }
+
+  Future<void> _printBoq(ProjectEstimate est) async {
+    final id = est.id;
+    if (id == null) return;
+    final full = await _repo.findById(id);
+    if (!mounted || full == null) return;
+    if (full.lines.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Work item မရှိသေးပါ။')),
+      );
+      return;
+    }
+    try {
+      await BoqPdfService().preview(full);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('PDF preview failed: $e')),
+      );
+    }
   }
 
   Future<void> _confirmDelete(ProjectEstimate est) async {
@@ -250,6 +272,8 @@ class _EstimateListScreenState extends State<EstimateListScreen> {
           switch (action) {
             case _TileAction.edit:
               _openForm(id: est.id);
+            case _TileAction.printBoq:
+              _printBoq(est);
             case _TileAction.delete:
               _confirmDelete(est);
           }
@@ -260,6 +284,14 @@ class _EstimateListScreenState extends State<EstimateListScreen> {
             child: ListTile(
               leading: Icon(Icons.edit_outlined),
               title: Text('Edit'),
+              dense: true,
+            ),
+          ),
+          const PopupMenuItem(
+            value: _TileAction.printBoq,
+            child: ListTile(
+              leading: Icon(Icons.picture_as_pdf_outlined),
+              title: Text('Print BOQ'),
               dense: true,
             ),
           ),
@@ -336,4 +368,4 @@ class _StateBadge extends StatelessWidget {
   }
 }
 
-enum _TileAction { edit, delete }
+enum _TileAction { edit, printBoq, delete }

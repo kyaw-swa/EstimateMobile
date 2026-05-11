@@ -5,6 +5,7 @@ import '../../models/abstract_of_cost.dart';
 import '../../models/project_estimate.dart';
 import '../../repositories/abstract_of_cost_repository.dart';
 import '../../repositories/project_estimate_repository.dart';
+import '../../services/boq_pdf_service.dart';
 import '../../widgets/confirm_dialog.dart';
 import '../../widgets/numeric_field.dart';
 import 'estimate_line_form_screen.dart';
@@ -224,6 +225,55 @@ class _EstimateFormScreenState extends State<EstimateFormScreen> {
     setState(() => _state = target);
   }
 
+  // ──────────── BOQ PDF ────────────
+
+  ProjectEstimate _currentEstimate() {
+    return ProjectEstimate(
+      id: _id,
+      name: _nameCtl.text.trim().isEmpty ? 'Untitled' : _nameCtl.text.trim(),
+      customerName:
+          _customerCtl.text.trim().isEmpty ? null : _customerCtl.text.trim(),
+      date: _date,
+      state: _state,
+      notes: _notesCtl.text.trim().isEmpty ? null : _notesCtl.text.trim(),
+      lines: _lines,
+    );
+  }
+
+  Future<void> _previewBoq() async {
+    if (_lines.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Work item မရှိသေးပါ။ Line အရင်ထည့်ပါ။')),
+      );
+      return;
+    }
+    try {
+      await BoqPdfService().preview(_currentEstimate());
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('PDF preview failed: $e')),
+      );
+    }
+  }
+
+  Future<void> _shareBoq() async {
+    if (_lines.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Work item မရှိသေးပါ။ Line အရင်ထည့်ပါ။')),
+      );
+      return;
+    }
+    try {
+      await BoqPdfService().share(_currentEstimate());
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('PDF share failed: $e')),
+      );
+    }
+  }
+
   // ──────────── Build ────────────
 
   @override
@@ -242,6 +292,36 @@ class _EstimateFormScreenState extends State<EstimateFormScreen> {
       appBar: AppBar(
         title: Text(_isEdit ? 'Edit Estimate' : 'New Estimate'),
         actions: [
+          PopupMenuButton<_FormMenuAction>(
+            icon: const Icon(Icons.more_vert),
+            tooltip: 'More',
+            onSelected: (action) {
+              switch (action) {
+                case _FormMenuAction.previewBoq:
+                  _previewBoq();
+                case _FormMenuAction.shareBoq:
+                  _shareBoq();
+              }
+            },
+            itemBuilder: (_) => const [
+              PopupMenuItem(
+                value: _FormMenuAction.previewBoq,
+                child: ListTile(
+                  leading: Icon(Icons.picture_as_pdf_outlined),
+                  title: Text('Preview BOQ PDF'),
+                  dense: true,
+                ),
+              ),
+              PopupMenuItem(
+                value: _FormMenuAction.shareBoq,
+                child: ListTile(
+                  leading: Icon(Icons.share_outlined),
+                  title: Text('Share BOQ PDF'),
+                  dense: true,
+                ),
+              ),
+            ],
+          ),
           PopupMenuButton<EstimateState>(
             icon: const Icon(Icons.flag_outlined),
             tooltip: 'Change state',
@@ -813,3 +893,5 @@ class _AcPickerSheetState extends State<_AcPickerSheet> {
     );
   }
 }
+
+enum _FormMenuAction { previewBoq, shareBoq }
