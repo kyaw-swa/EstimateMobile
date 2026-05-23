@@ -6,62 +6,106 @@ import '../database/database_helper.dart';
 import '../services/backup_service.dart';
 import '../widgets/confirm_dialog.dart';
 
-class SettingsScreen extends StatefulWidget {
+class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key, BackupService? backupService})
       : _backupService = backupService;
 
   final BackupService? _backupService;
 
   @override
-  State<SettingsScreen> createState() => _SettingsScreenState();
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      children: [
+        const SizedBox(height: 8),
+        _SectionCard(
+          children: [
+            _MenuTile(
+              icon: Icons.storage_outlined,
+              title: 'Database',
+              subtitle: 'Re-seed default data၊ database reset',
+              onTap: () => _open(
+                context,
+                'Database',
+                const _DatabaseSettingsScreen(),
+              ),
+            ),
+            const _Divider(),
+            _MenuTile(
+              icon: Icons.cloud_sync_outlined,
+              title: 'Backup & Restore',
+              subtitle: 'Data ကို export/restore လုပ်ရန်',
+              onTap: () => _open(
+                context,
+                'Backup & Restore',
+                _BackupRestoreScreen(backupService: _backupService),
+              ),
+            ),
+            const _Divider(),
+            _MenuTile(
+              icon: Icons.info_outline,
+              title: 'About',
+              subtitle: 'App version နှင့် credits',
+              onTap: () => _open(context, 'About', const _AboutScreen()),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  void _open(BuildContext context, String title, Widget body) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => Scaffold(
+          appBar: AppBar(title: Text(title)),
+          body: body,
+        ),
+      ),
+    );
+  }
 }
 
-class _SettingsScreenState extends State<SettingsScreen> {
-  late final BackupService _backup = widget._backupService ?? BackupService();
+class _MenuTile extends StatelessWidget {
+  const _MenuTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
 
-  DateTime? _lastBackupAt;
-  bool _busy = false;
-  String? _busyLabel;
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
 
   @override
-  void initState() {
-    super.initState();
-    _refreshLastBackup();
+  Widget build(BuildContext context) {
+    return ListTile(
+      leading: Icon(icon),
+      title: Text(title),
+      subtitle: Text(subtitle),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: onTap,
+    );
   }
+}
 
-  Future<void> _refreshLastBackup() async {
-    final last = await _backup.lastBackupAt();
-    if (!mounted) return;
-    setState(() => _lastBackupAt = last);
-  }
+// ──────────────────── Database screen ────────────────────
 
-  Future<void> _run(String label, Future<void> Function() action) async {
-    if (_busy) return;
-    setState(() {
-      _busy = true;
-      _busyLabel = label;
-    });
-    final messenger = ScaffoldMessenger.of(context);
-    try {
-      await action();
-      await _refreshLastBackup();
-    } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text('$label failed: $e')));
-    } finally {
-      if (mounted) {
-        setState(() {
-          _busy = false;
-          _busyLabel = null;
-        });
-      }
-    }
-  }
+class _DatabaseSettingsScreen extends StatefulWidget {
+  const _DatabaseSettingsScreen();
 
-  // ──────────── Database actions ────────────
+  @override
+  State<_DatabaseSettingsScreen> createState() =>
+      _DatabaseSettingsScreenState();
+}
 
+class _DatabaseSettingsScreenState extends State<_DatabaseSettingsScreen>
+    with _BusyOverlayMixin {
   Future<void> _reseedDefaultData() async {
     final messenger = ScaffoldMessenger.of(context);
-    await _run('Re-seed', () async {
+    await run('Re-seed', () async {
       await DatabaseHelper.instance.ensureDefaultData();
       messenger.showSnackBar(
         const SnackBar(content: Text('Default UoMs, Materials, Labour ensured.')),
@@ -82,7 +126,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
     if (!confirmed || !mounted) return;
     final messenger = ScaffoldMessenger.of(context);
-    await _run('Reset', () async {
+    await run('Reset', () async {
       await DatabaseHelper.instance.deleteAndRecreate();
       messenger.showSnackBar(
         const SnackBar(content: Text('Database reset complete.')),
@@ -90,11 +134,89 @@ class _SettingsScreenState extends State<SettingsScreen> {
     });
   }
 
-  // ──────────── Backup actions ────────────
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Stack(
+      children: [
+        ListView(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          children: [
+            _SectionCard(
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.refresh_outlined),
+                  title: const Text('Re-seed default data'),
+                  subtitle: const Text(
+                    'Empty table တွေထဲကို default UoMs, Materials, Labour ထည့်မယ် — '
+                    'ရှိပြီးသား data ကို မထိ',
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  enabled: !busy,
+                  onTap: _reseedDefaultData,
+                ),
+                const _Divider(),
+                ListTile(
+                  leading: Icon(
+                    Icons.delete_forever_outlined,
+                    color: scheme.error,
+                  ),
+                  title: Text(
+                    'Reset database',
+                    style: TextStyle(color: scheme.error),
+                  ),
+                  subtitle: const Text(
+                    'Schema + seed အသစ်ပြန်တည်ဆောက် — data အားလုံးပျောက်မယ်',
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  enabled: !busy,
+                  onTap: _resetDatabase,
+                ),
+              ],
+            ),
+          ],
+        ),
+        busyOverlay(),
+      ],
+    );
+  }
+}
 
-  Future<void> _exportDb() => _run('Export DB', _backup.shareDatabaseFile);
-  Future<void> _exportJson() => _run('Export JSON', _backup.shareJson);
-  Future<void> _exportCsv() => _run('Export CSV', _backup.shareCsv);
+// ──────────────────── Backup & Restore screen ────────────────────
+
+class _BackupRestoreScreen extends StatefulWidget {
+  const _BackupRestoreScreen({BackupService? backupService})
+      : _backupService = backupService;
+
+  final BackupService? _backupService;
+
+  @override
+  State<_BackupRestoreScreen> createState() => _BackupRestoreScreenState();
+}
+
+class _BackupRestoreScreenState extends State<_BackupRestoreScreen>
+    with _BusyOverlayMixin {
+  late final BackupService _backup = widget._backupService ?? BackupService();
+  DateTime? _lastBackupAt;
+
+  @override
+  void initState() {
+    super.initState();
+    _refreshLastBackup();
+  }
+
+  Future<void> _refreshLastBackup() async {
+    final last = await _backup.lastBackupAt();
+    if (!mounted) return;
+    setState(() => _lastBackupAt = last);
+  }
+
+  Future<void> _exportDb() =>
+      run('Export DB', _backup.shareDatabaseFile, after: _refreshLastBackup);
+  Future<void> _exportJson() =>
+      run('Export JSON', _backup.shareJson, after: _refreshLastBackup);
+  Future<void> _exportCsv() =>
+      run('Export CSV', _backup.shareCsv, after: _refreshLastBackup);
 
   Future<void> _restore() async {
     final picked = await FilePicker.platform.pickFiles(
@@ -117,59 +239,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
     if (!confirmed || !mounted) return;
     final messenger = ScaffoldMessenger.of(context);
-    await _run('Restore', () async {
+    await run('Restore', () async {
       await _backup.restoreFrom(path);
       messenger.showSnackBar(
         const SnackBar(content: Text('Restore complete. Reopen the app for a clean slate.')),
       );
-    });
+    }, after: _refreshLastBackup);
   }
-
-  // ──────────── Build ────────────
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     return Stack(
       children: [
         ListView(
           padding: const EdgeInsets.symmetric(vertical: 8),
           children: [
-            const _SectionHeader(title: 'Database'),
-            _SectionCard(
-              children: [
-                ListTile(
-                  leading: const Icon(Icons.refresh_outlined),
-                  title: const Text('Re-seed default data'),
-                  subtitle: const Text(
-                    'Empty table တွေထဲကို default UoMs, Materials, Labour ထည့်မယ် — '
-                    'ရှိပြီးသား data ကို မထိ',
-                  ),
-                  trailing: const Icon(Icons.chevron_right),
-                  enabled: !_busy,
-                  onTap: _reseedDefaultData,
-                ),
-                const _Divider(),
-                ListTile(
-                  leading: Icon(
-                    Icons.delete_forever_outlined,
-                    color: scheme.error,
-                  ),
-                  title: Text(
-                    'Reset database',
-                    style: TextStyle(color: scheme.error),
-                  ),
-                  subtitle: const Text(
-                    'Schema + seed အသစ်ပြန်တည်ဆောက် — data အားလုံးပျောက်မယ်',
-                  ),
-                  trailing: const Icon(Icons.chevron_right),
-                  enabled: !_busy,
-                  onTap: _resetDatabase,
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            const _SectionHeader(title: 'Backup & Restore'),
             _SectionCard(
               children: [
                 _BackupStatusTile(lastBackupAt: _lastBackupAt),
@@ -181,7 +265,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     'Raw .db file ကို share — အမြန်ဆုံး၊ အပြည့်စုံဆုံး',
                   ),
                   trailing: const Icon(Icons.share),
-                  enabled: !_busy,
+                  enabled: !busy,
                   onTap: _exportDb,
                 ),
                 const _Divider(),
@@ -192,7 +276,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     'Human-readable၊ schema-compatible builds တွေကြားမှာ portable',
                   ),
                   trailing: const Icon(Icons.share),
-                  enabled: !_busy,
+                  enabled: !busy,
                   onTap: _exportJson,
                 ),
                 const _Divider(),
@@ -203,7 +287,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     'Table တစ်ခုစီအတွက် .csv တစ်ဖိုင်စီ',
                   ),
                   trailing: const Icon(Icons.share),
-                  enabled: !_busy,
+                  enabled: !busy,
                   onTap: _exportCsv,
                 ),
                 const _Divider(),
@@ -214,53 +298,110 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     '.db သို့မဟုတ် .json file ကို ရွေး — data အားလုံး အစားထိုးပါမယ်',
                   ),
                   trailing: const Icon(Icons.chevron_right),
-                  enabled: !_busy,
+                  enabled: !busy,
                   onTap: _restore,
                 ),
               ],
             ),
-            const SizedBox(height: 16),
-            const _SectionHeader(title: 'About'),
-            const _SectionCard(
-              children: [
-                ListTile(
-                  leading: Icon(Icons.info_outline),
-                  title: Text('EzEstimate'),
-                  subtitle: Text('Version 1.0.0'),
-                ),
-                _Divider(),
-                ListTile(
-                  leading: Icon(Icons.code),
-                  title: Text('Built with Flutter + sqflite'),
-                  subtitle: Text('Local-only, no online sync'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
           ],
         ),
-        if (_busy)
-          Positioned.fill(
-            child: ColoredBox(
-              color: Colors.black.withValues(alpha: 0.25),
-              child: Center(
-                child: Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const CircularProgressIndicator(),
-                        const SizedBox(height: 12),
-                        Text(_busyLabel ?? 'Working...'),
-                      ],
-                    ),
-                  ),
-                ),
+        busyOverlay(),
+      ],
+    );
+  }
+}
+
+// ──────────────────── About screen ────────────────────
+
+class _AboutScreen extends StatelessWidget {
+  const _AboutScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      children: const [
+        _SectionCard(
+          children: [
+            ListTile(
+              leading: Icon(Icons.info_outline),
+              title: Text('EzEstimate'),
+              subtitle: Text('Version 1.0.0'),
+            ),
+            _Divider(),
+            ListTile(
+              leading: Icon(Icons.code),
+              title: Text('Built with Flutter + sqflite'),
+              subtitle: Text('Local-only, no online sync'),
+            ),
+            _Divider(),
+            ListTile(
+              leading: Icon(Icons.person_outline),
+              title: Text('Developed by'),
+              subtitle: Text('Phoe Ku'),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+// ──────────────────── Shared helpers ────────────────────
+
+mixin _BusyOverlayMixin<T extends StatefulWidget> on State<T> {
+  bool _busy = false;
+  String? _busyLabel;
+
+  bool get busy => _busy;
+
+  Future<void> run(
+    String label,
+    Future<void> Function() action, {
+    Future<void> Function()? after,
+  }) async {
+    if (_busy) return;
+    setState(() {
+      _busy = true;
+      _busyLabel = label;
+    });
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await action();
+      if (after != null) await after();
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('$label failed: $e')));
+    } finally {
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          _busyLabel = null;
+        });
+      }
+    }
+  }
+
+  Widget busyOverlay() {
+    if (!_busy) return const SizedBox.shrink();
+    return Positioned.fill(
+      child: ColoredBox(
+        color: Colors.black.withValues(alpha: 0.25),
+        child: Center(
+          child: Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const CircularProgressIndicator(),
+                  const SizedBox(height: 12),
+                  Text(_busyLabel ?? 'Working...'),
+                ],
               ),
             ),
           ),
-      ],
+        ),
+      ),
     );
   }
 }
@@ -294,27 +435,6 @@ class _BackupStatusTile extends StatelessWidget {
       title: Text(label, style: TextStyle(color: color)),
       subtitle: Text(hint),
       dense: true,
-    );
-  }
-}
-
-class _SectionHeader extends StatelessWidget {
-  const _SectionHeader({required this.title});
-
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-      child: Text(
-        title.toUpperCase(),
-        style: Theme.of(context).textTheme.titleSmall?.copyWith(
-              color: Theme.of(context).colorScheme.primary,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.8,
-            ),
-      ),
     );
   }
 }
