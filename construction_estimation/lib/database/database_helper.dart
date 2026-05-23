@@ -31,7 +31,11 @@ class DatabaseHelper {
   /// - v6: drop manual override fields — `manual_qty` from estimate_line,
   ///       `is_manual` from estimate_line_material/labour. All quantities
   ///       are derived from dimensions + A/C template.
-  static const int _dbVersion = 6;
+  /// - v7: seed full Abstract-of-Cost catalogue (41 ACs from Odoo
+  ///       construction_ac_data.xml) + 4 new M+L composite materials
+  ///       (Aluminium W, Ceiling C-channel, Ceiling hollow, Handrail) +
+  ///       Cuft UoM. Populates `default_rate` on existing master rows.
+  static const int _dbVersion = 7;
 
   Database? _database;
 
@@ -77,7 +81,7 @@ class DatabaseHelper {
     // Dev-stage policy: any version < current → full rebuild. Acceptable
     // because we have no production users; both v1 (wrong schema) and v2
     // (Odoo-only UoM seed) need their seed data refreshed for v3.
-    if (oldVersion < 6) {
+    if (oldVersion < 7) {
       await _rebuildAll(db);
     }
   }

@@ -95,15 +95,37 @@ class _SplashScreenState extends State<SplashScreen> {
               left: 0,
               right: 0,
               bottom: 24,
-              child: Center(
-                child: Text(
-                  'v${SplashScreen.version}',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: scheme.onPrimary.withValues(alpha: 0.7),
-                    letterSpacing: 0.6,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Developed by',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: scheme.onPrimary.withValues(alpha: 0.7),
+                      letterSpacing: 0.6,
+                    ),
                   ),
-                ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Phoe Ku',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: scheme.onPrimary,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.4,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'v${SplashScreen.version}',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: scheme.onPrimary.withValues(alpha: 0.6),
+                      letterSpacing: 0.6,
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
